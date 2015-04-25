@@ -1,0 +1,86 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Rafael Garcia Cunha"
+date: "Saturday, April 25, 2015"
+output: html_document
+---
+
+### Packages
+```{r}
+library(caret)
+library(randomForest)
+```
+
+### Getting and Cleaning Data
+```{r}
+train <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!",""), h = T)
+train <- train[,-1] #removing the ID row variable
+test <- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!",""), h = T)
+test <- test[,-1] #removing the ID row variable
+```
+
+I read both data sets and removed the first colum of each cause it is an ID. I aso converted blanks ('""'), '#DIV/0' and 'NA' into NA values.
+
+### Partitionating Data
+```{r}
+inTrain <- createDataPartition(train$classe, p=0.6, list=FALSE)
+training <- train[inTrain, ]
+testing <- train[-inTrain, ]
+dim(training); dim(testing)
+```
+
+I'm dividing data to 60% training and 40% testing sets.
+
+### Variable Selection
+```{r}
+hist(colSums(is.na(training)/dim(training)[1]), plot=F)
+variables <- c(colSums(is.na(training)/dim(training)[1]) < 0.2)
+training <- training[,variables]
+testing <- testing[,variables]
+```
+
+As we can see from the \textbf{hist} function, we have 100 variables with more than `r 0.8` rate of NA. So we'll work with the other 59. 
+
+### Model and Predictions
+
+I'm fitting a random forest model with \textit{classe} as outcome and the other 58 as possible predictors. I'm also looking the variable importance measures produced by the random forest. 
+```{r}
+fitRF <- randomForest(classe ~ ., data = training)
+varImp(fitRF)
+
+pred1 <- predict(fitRF, newdata = training)
+confusionMatrix(pred1, training$classe)
+
+pred2 <- predict(fitRF, newdata = testing)
+confusionMatrix(pred2, testing$classe)
+```
+
+The \textit{confusionMatrix} is a tool to evaluate the fitted model. In the training data we have Accuracy of 1, Sensitivity and Specificity all equal to 1 too. In the testing data the accuracy is 99.86% (so the expected out-of-sample error is 0.14%) and very good sensitivity and specificity.
+
+### Test Data
+```{r}
+test <- test[,variables]
+test <- test[,-ncol(test)]
+```
+
+```{r, echo = F}
+test <- rbind(training[100, -59], test) 
+row.names(test) <- c(100, 1:20)
+test <- test[-1,]
+```
+
+```{r}
+pred3 <- predict(fitRF, newdata = test)
+pred3
+
+setwd("C:\\Users\\Rafael\\Documents\\Coursera\\Practical Machine Learning")
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(pred3)
+```
